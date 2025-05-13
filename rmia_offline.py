@@ -73,5 +73,5 @@ def rmia_offline(target_model, shadow_models, priv_dataloader, pub_dataloader,
                 scores.append((ids[i].item(), score))
 
     print(f"rmia_offline completed. Computed {len(scores)} scores.")
-    return np.array(scores)
+    return np.array(scores, dtype=[('id', int), ('score', float)])
 

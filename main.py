@@ -12,16 +12,17 @@ import os
 import requests
 import pandas as pd
 from dotenv import load_dotenv
+import numpy as np
 
 TRAIN_SHADOW_MODELS = False
-INFERENCE = True
+INFERENCE = False
 SUBMIT_TO_SCORE_BOARD = True
 
 NUM_SHADOW_MODELS = 2
-BATCH_SIZE = 32
+BATCH_SIZE = 256
 lr = 1e-3
-NUM_EPOCHS = 2
-WEIGHT_DECAY = 1e-3
+NUM_EPOCHS = 100
+WEIGHT_DECAY = 1e-4
 
 mean = [0.2980, 0.2962, 0.2987]
 std = [0.2886, 0.2875, 0.2889]
@@ -84,14 +85,39 @@ if INFERENCE:
     scores = rmia_offline(target_model, shadow_models_list, priv_dataloader, pub_dataloader, 
                  gamma = 2.0, a = 0.3, num_z_samples = len(pub_dataset))
 
-    df = pd.DataFrame(
-    {
-        "ids": scores['id'],
-        "score": scores['score'],
-    })
-    df.to_csv("scores.csv", index=None)
+    print("Scores type:", type(scores))
+    print("Scores shape:", scores.shape if isinstance(scores, np.ndarray) else len(scores))
+    print("Scores sample:", scores[:5] if len(scores) > 0 else scores)
 
-    print("Scores and IDs saved to scores.csv")
+    try:
+        df = pd.DataFrame(
+            {
+                "ids": scores['id'],
+                "score": scores['score'],
+            }
+        )
+        df.to_csv("scores.csv", index=None)
+        print("Scores and IDs saved to scores.csv")
+    except (IndexError, TypeError) as e:
+        print(f"Error creating DataFrame: {e}")
+        print("Ensure rmia_offline returns a structured array with 'id' and 'score' fields.")
+        # Fallback: Collect IDs manually (if using original rmia_offline)
+        ids_list = []
+        scores_list = scores.tolist() if isinstance(scores, np.ndarray) else scores
+        for ids, _, _, _ in priv_dataloader:
+            for i in range(len(ids)):
+                ids_list.append(ids[i].item())
+        if len(ids_list) == len(scores_list):
+            df = pd.DataFrame(
+                {
+                    "ids": ids_list,
+                    "score": scores_list,
+                }
+            )
+            df.to_csv("scores.csv", index=None)
+            print("Scores and IDs saved to scores.csv (fallback method)")
+        else:
+            print(f"Cannot save: {len(ids_list)} IDs but {len(scores_list)} scores")
         
 if SUBMIT_TO_SCORE_BOARD:
 
